@@ -26,6 +26,7 @@ through environment variables.
 - [Trying it out with curl](#trying-it-out-with-curl)
 - [Running locally without containers](#running-locally-without-containers)
 - [Project structure](#project-structure)
+- [License](#license)
 
 ---
 
@@ -176,5 +177,10 @@ The service is then available at <http://localhost:8000/health>.
 .
 ├── app.py             # the whole service (routes + DB access)
 ├── requirements.txt   # Python dependencies (pinned)
+├── LICENSE            # MIT
 └── README.md
 ```
+
+## License
+
+Released under the [MIT License](LICENSE).
