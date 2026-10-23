@@ -23,7 +23,7 @@ through environment variables.
 - [Environment variables](#environment-variables)
 - [Database](#database)
 - [API reference](#api-reference)
-- [Trying it out with curl](#trying-it-out-with-curl)
+- [Testing the endpoints with curl](#testing-the-endpoints-with-curl)
 - [Running locally without containers](#running-locally-without-containers)
 - [Project structure](#project-structure)
 - [License](#license)
@@ -127,34 +127,120 @@ A book looks like this:
 { "id": 1, "title": "Dune", "author": "Frank Herbert", "year": 1965 }
 ```
 
-## Trying it out with curl
+## Testing the endpoints with curl
+
+The service exposes **only a REST API**: there is no web page. You can test it
+with `curl` from the machine where it runs, or from your laptop, using the VM's
+IP address.
+
+Set the base URL once:
 
 ```bash
-# Is the service up and connected to the database?
-curl localhost:8000/health
-# {"database":"up","status":"ok"}
+BASE=http://localhost:8000          # on the VM itself
+# BASE=http://<VM_IP>:8000          # from another machine
+```
 
-# Create
-curl -X POST localhost:8000/books \
+> 💡 Add `-i` to any command to see the HTTP status code and the headers, e.g.
+> `curl -i $BASE/health`.
+
+### Health check
+
+```bash
+curl $BASE/health
+```
+```text
+{"database":"up","status":"ok"}                  # 200 OK
+{"database":"down","status":"error"}             # 503 if the DB is unreachable
+```
+
+### Create books (`POST /books`)
+
+```bash
+curl -X POST $BASE/books \
      -H "Content-Type: application/json" \
      -d '{"title": "Dune", "author": "Frank Herbert", "year": 1965}'
 
-# Read
-curl localhost:8000/books
-curl localhost:8000/books/1
-
-# Update
-curl -X PUT localhost:8000/books/1 \
+curl -X POST $BASE/books \
      -H "Content-Type: application/json" \
-     -d '{"year": 1966}'
-
-# Delete
-curl -X DELETE localhost:8000/books/1
+     -d '{"title": "Neuromancer", "author": "William Gibson", "year": 1984}'
+```
+```text
+{"author":"Frank Herbert","id":1,"title":"Dune","year":1965}            # 201 Created
+{"author":"William Gibson","id":2,"title":"Neuromancer","year":1984}    # 201 Created
 ```
 
-💡 **Persistence check**: create a few books, stop and remove the containers,
-start them again, then run `GET /books`. If the database data is stored in a
-volume, the books are still there.
+### List all books (`GET /books`)
+
+```bash
+curl $BASE/books
+```
+```text
+[{"author":"Frank Herbert","id":1,"title":"Dune","year":1965},{"author":"William Gibson","id":2,"title":"Neuromancer","year":1984}]
+```
+
+### Get one book (`GET /books/<id>`)
+
+```bash
+curl $BASE/books/1
+```
+```text
+{"author":"Frank Herbert","id":1,"title":"Dune","year":1965}
+```
+
+### Update a book (`PUT /books/<id>`)
+
+Only the fields you send are changed.
+
+```bash
+curl -X PUT $BASE/books/1 \
+     -H "Content-Type: application/json" \
+     -d '{"year": 1966}'
+```
+```text
+{"author":"Frank Herbert","id":1,"title":"Dune","year":1966}
+```
+
+### Delete a book (`DELETE /books/<id>`)
+
+```bash
+curl -i -X DELETE $BASE/books/2
+```
+```text
+HTTP/1.1 204 NO CONTENT                           # empty body
+```
+
+### Error cases
+
+```bash
+# Book that does not exist -> 404
+curl $BASE/books/42
+# {"error":"not found"}
+
+# Missing required field -> 400
+curl -X POST $BASE/books \
+     -H "Content-Type: application/json" \
+     -d '{"title": "Untitled"}'
+# {"error":"'title' and 'author' are required"}
+
+# Update with nothing to change -> 400
+curl -X PUT $BASE/books/1 \
+     -H "Content-Type: application/json" \
+     -d '{}'
+# {"error":"provide at least one of ['title', 'author', 'year']"}
+```
+
+> 💡 Pretty-print the JSON by piping it into `jq` (`curl -s $BASE/books | jq`)
+> or `python3 -m json.tool`.
+
+### Persistence check
+
+The data must survive the containers being removed and created again:
+
+1. create a few books with `POST /books`;
+2. stop **and remove** the containers (e.g. `docker compose down`, without `-v`);
+3. start them again;
+4. run `curl $BASE/books`. If the database data is stored in a volume, the
+   books are still there.
 
 ## Running locally without containers
 
